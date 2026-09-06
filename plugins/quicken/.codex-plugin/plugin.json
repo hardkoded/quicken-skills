@@ -1,0 +1,35 @@
+{
+  "name": "quicken",
+  "version": "1.0.0",
+  "description": "Skills that let an AI agent explore your Quicken for Mac data: net worth, spending, investments, and data hygiene, with multi-currency consolidation.",
+  "author": {
+    "name": "hardkoded",
+    "url": "https://www.hardkoded.com/"
+  },
+  "homepage": "https://www.hardkoded.com/",
+  "repository": "https://github.com/hardkoded/quicken-skills",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "quicken",
+    "personal-finance",
+    "sqlite",
+    "net-worth",
+    "multi-currency"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Quicken",
+    "shortDescription": "Explore your Quicken for Mac finances with an AI agent, read-only, across currencies.",
+    "longDescription": "Skills that let an AI agent explore your Quicken for Mac data: net worth, spending, investments, and data hygiene, with multi-currency consolidation.",
+    "developerName": "hardkoded",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive"
+    ],
+    "websiteURL": "https://www.hardkoded.com/",
+    "defaultPrompt": [
+      "Set up Quicken skills and show my net worth"
+    ]
+  }
+}

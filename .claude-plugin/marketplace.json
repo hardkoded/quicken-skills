@@ -1,0 +1,18 @@
+{
+  "name": "quicken-skills",
+  "owner": {
+    "name": "hardkoded",
+    "url": "https://www.hardkoded.com/"
+  },
+  "metadata": {
+    "description": "Skills that let an AI agent explore your Quicken for Mac data: net worth, spending, investments, and data hygiene, with multi-currency consolidation.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "quicken",
+      "source": "./plugins/quicken",
+      "description": "Ask questions about your Quicken for Mac finances in plain language. Read-only. Consolidates accounts in different currencies into one base currency."
+    }
+  ]
+}
