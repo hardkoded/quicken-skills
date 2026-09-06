@@ -1,7 +1,7 @@
 {
   "name": "quicken",
   "description": "Skills that let an AI agent explore your Quicken for Mac data: net worth, spending, investments, and data hygiene, with multi-currency consolidation.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "hardkoded",
     "url": "https://www.hardkoded.com/"

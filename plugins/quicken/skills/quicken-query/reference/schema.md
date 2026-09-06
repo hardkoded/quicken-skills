@@ -130,7 +130,7 @@ through the base currency. `fx_config(base_ccy)` has one row.
 ## Known quirks
 
 - A few old transfer lines store an account name in `ZTRANSFER` instead of an id. The views
-  treat them as transfers with an unknown counterpart.
+  resolve those by account name; only names that match no account stay unresolved.
 - Lot units and summed transaction units can differ after stock splits or manual lot edits.
   Lots are what Quicken shows; use them for current holdings.
 - `ZRECONCILESTATUS` is NULL on investment transactions.
