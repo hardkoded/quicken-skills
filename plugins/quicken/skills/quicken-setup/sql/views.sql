@@ -115,8 +115,8 @@ SELECT e.Z_PK            AS id,
        e.ZAMOUNT         AS amount,
        e.ZNOTE           AS note,
        CASE WHEN e.ZTRANSFER IS NOT NULL THEN 1 ELSE 0 END AS is_transfer,
-       ot.ZACCOUNT       AS transfer_account_id,
-       oa.ZNAME          AS transfer_account,
+       coalesce(ot.ZACCOUNT, na.Z_PK) AS transfer_account_id,
+       coalesce(oa.ZNAME, na.ZNAME)   AS transfer_account,
        (SELECT group_concat(ut.ZNAME, ', ')
           FROM {{USERTAGS_TABLE}} j
           JOIN ZTAG ut ON ut.Z_PK = j.{{USERTAGS_TAG_COL}}
@@ -132,6 +132,11 @@ LEFT JOIN ZCASHFLOWTRANSACTIONENTRY oe
       AND oe.ZDELETIONCOUNT = 0
 LEFT JOIN ZTRANSACTION ot ON ot.Z_PK = oe.ZPARENT
 LEFT JOIN ZACCOUNT oa ON oa.Z_PK = ot.ZACCOUNT
+-- Older files store the counterpart account's name instead of a line id.
+LEFT JOIN ZACCOUNT na
+       ON e.ZTRANSFER IS NOT NULL AND NOT (e.ZTRANSFER GLOB '[0-9]*')
+      AND na.ZNAME = trim(e.ZTRANSFER, ' ' || char(9))
+      AND na.ZDELETIONCOUNT = 0
 WHERE e.ZDELETIONCOUNT = 0
   AND tx.kind <> 'scheduled';
 
