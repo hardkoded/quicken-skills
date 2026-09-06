@@ -6,10 +6,10 @@ WITH cash AS (
 ),
 parts AS (
   SELECT c.currency, c.amount AS amount,
-         c.amount * CASE WHEN c.currency = f.base_ccy THEN 1.0
-                         ELSE (SELECT rate FROM fx_rate r WHERE r.from_ccy = c.currency AND r.to_ccy = f.base_ccy ORDER BY date DESC LIMIT 1) END AS amount_base,
+         c.amount * CASE WHEN c.currency = f.base_ccy THEN 1.0 ELSE fx.rate END AS amount_base,
          'cash' AS part
   FROM cash c CROSS JOIN fx_config f
+  LEFT JOIN q_fx_latest fx ON fx.from_ccy = c.currency AND fx.to_ccy = f.base_ccy
   UNION ALL
   SELECT currency, sum(value), sum(value_base), 'securities' FROM q_holding GROUP BY 1
 ),

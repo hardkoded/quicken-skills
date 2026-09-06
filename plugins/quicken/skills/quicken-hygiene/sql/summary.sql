@@ -11,7 +11,7 @@ UNION ALL
 SELECT 'stale open accounts', count(*) FROM (
   SELECT a.id FROM q_account a LEFT JOIN q_transaction t ON t.account_id = a.id AND t.kind <> 'scheduled'
   WHERE a.closed = 0 GROUP BY a.id
-  HAVING coalesce(max(max(t.date), a.last_download_date), '1900-01-01') < date('now', '-30 days'))
+  HAVING max(coalesce(max(t.date), '1900-01-01'), coalesce(a.last_download_date, '1900-01-01')) < date('now', '-30 days'))
 UNION ALL
 SELECT 'uncleared older than 90 days', count(*) FROM q_transaction
 WHERE kind = 'cashflow' AND status = 'uncleared' AND date < date('now', '-90 days')

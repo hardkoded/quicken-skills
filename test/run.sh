@@ -39,6 +39,7 @@ check "fx on date (1.08)"     "-54.0"                    "$(q "SELECT amount_bas
 check "investment action"     "Buy,10,-400"          "$(q "SELECT action, units, amount FROM q_investment_transaction WHERE id = 106")"
 check "holding"               "10,50,500.0,100.0"    "$(q "SELECT units, price, value, unrealized_gain FROM q_holding")"
 check "month-end balance"     "2400"                   "$(q "SELECT balance FROM q_account_balance_monthly WHERE account = 'Checking' AND month = '2024-02'")"
+check "stale days sane"       "2024-02-15"               "$(q "SELECT max(coalesce(max(t.date), '1900-01-01'), coalesce(a.last_download_date, '1900-01-01')) FROM q_account a LEFT JOIN q_transaction t ON t.account_id = a.id WHERE a.name = 'Checking' GROUP BY a.id")"
 
 echo "recipes"
 check "spending by category"  "Food:Groceries,3,234.0,100.0" \
@@ -52,6 +53,9 @@ check "exposure"              "EUR,-50.0,0.0,-55.0" \
 check "security return"       "Test Fund,TST,open,400.0,0.0,5.0,500.0,105.0" \
   "$(q -f "$SKILLS/quicken-investments/sql/security_return.sql" | cut -d, -f1-3,6-10)"
 check "hygiene summary rows"  "9" "$(q -f "$SKILLS/quicken-hygiene/sql/summary.sql" | wc -l | tr -d ' ')"
+check "history month-end quote" "2024-12,2371.0,500.0,2871.0" \
+  "$(q -f "$SKILLS/quicken-net-worth/sql/history_monthly.sql" --from 2024-01-01 | grep '^2024-12')"
+check "stale accounts detail"  "4" "$(q -f "$SKILLS/quicken-hygiene/sql/stale_accounts.sql" | awk -F, '$NF < 2000' | wc -l | tr -d ' ')"
 
 echo "every recipe compiles and runs"
 for f in "$SKILLS"/quicken-*/sql/*.sql; do
@@ -65,6 +69,7 @@ done
 
 echo "base currency switch"
 check "base EUR total"        "EUR" "$(q "SELECT base_currency FROM q_split_base LIMIT 1" --base EUR)"
+check "base EUR derived rate" "-90.91" "$(q "SELECT amount_base FROM q_split_base WHERE id = 201" --base EUR 2>/dev/null)"
 check "base unchanged after"  "USD" "$(q "SELECT base_ccy FROM fx_config")"
 
 if [ "$fail" = 0 ]; then echo "all tests passed"; else echo "tests failed"; exit 1; fi

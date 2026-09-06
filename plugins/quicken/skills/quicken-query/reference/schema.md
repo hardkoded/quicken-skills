@@ -104,8 +104,9 @@ Join `q_split_base` on `transaction_id` for `fx_rate` on the transaction date.
 
 ### q_fx_latest, fx_rate, fx_config
 `fx_rate(from_ccy, to_ccy, date, rate, source)`: `rate` is units of `to_ccy` per one
-`from_ccy`. `source` is `frankfurter`, `yahoo`, `csv`, or `quicken`. `fx_config(base_ccy)`
-has one row.
+`from_ccy`. `source` is `frankfurter`, `yahoo`, `csv`, or `quicken`, with a `-derived` suffix
+for reverse rates computed from a cached series and `cross-derived` for pairs computed
+through the base currency. `fx_config(base_ccy)` has one row.
 
 ## Raw tables worth knowing
 

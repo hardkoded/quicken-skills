@@ -1,10 +1,11 @@
--- Month-end net worth in the base currency. Cash from q_account_balance_monthly;
+-- Month-end net worth in the base currency, open accounts only. Cash from q_account_balance_monthly;
 -- securities from units rebuilt out of investment transactions and the last price on or
 -- before month end (raw ZSECURITYQUOTE is used for speed).
 WITH RECURSIVE
 cash AS (
   SELECT month, month_end, sum(balance_base) AS cash_base
-  FROM q_account_balance_monthly
+  FROM q_account_balance_monthly b
+  JOIN q_account a ON a.id = b.account_id AND a.closed = 0
   WHERE month >= strftime('%Y-%m', '{{from}}')
   GROUP BY 1, 2
 ),
@@ -27,7 +28,7 @@ valued AS (
   SELECT x.month, x.currency,
          x.units * (SELECT q.ZCLOSINGPRICE FROM ZSECURITYQUOTE q
                      WHERE q.ZSECURITY = x.security_id AND q.ZDELETIONCOUNT = 0 AND q.ZCLOSINGPRICE IS NOT NULL
-                       AND q.ZQUOTEDATE <= strftime('%s', x.month_end) - 978307200
+                       AND q.ZQUOTEDATE < strftime('%s', x.month_end, '+1 day') - 978307200
                      ORDER BY q.ZQUOTEDATE DESC LIMIT 1) AS value,
          CASE WHEN x.currency = f.base_ccy THEN 1.0
               ELSE coalesce(

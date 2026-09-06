@@ -30,7 +30,7 @@ Run with `bash <skill-dir>/../quicken-setup/bin/quicken.sh sql -f <skill-dir>/sq
 | `by_category.sql` | where did the money go, by full category, with share of total |
 | `by_category_month.sql` | month by top-level category, long format for trends |
 | `by_payee.sql` | top payees: count, average, total |
-| `trend_vs_12mo_avg.sql` | last full month per top-level category vs the average of the 12 months before it |
+| `trend_vs_12mo_avg.sql` | last full month per top-level category vs the average of the 12 months before it (ignores `--from/--to`) |
 | `recurring_candidates.sql` | payees charged at a steady monthly cadence with a steady amount |
 | `price_increases.sql` | recurring payees whose latest charge is above the previous one |
 | `largest_transactions.sql` | biggest single expenses in the period |

@@ -26,10 +26,11 @@ Run with `bash <skill-dir>/../quicken-setup/bin/quicken.sh sql -f <skill-dir>/sq
 | `current_by_account.sql` | every open account: cash, securities, total in its currency and in the base |
 | `current_by_type.sql` | totals by account type plus a grand total |
 | `exposure_by_currency.sql` | how much of the net worth is denominated in each currency |
-| `history_monthly.sql` | month-end cash, securities and total in the base currency, from the first transaction to now |
+| `history_monthly.sql` | month-end cash, securities and total in the base currency; last 12 months by default |
 
-`history_monthly.sql` takes `--from` to shorten the range. To answer "how did my net worth
-change since X", read the two rows for X and the latest month from that recipe.
+`history_monthly.sql` honours `--from`; pass `--from 1900-01-01` for the whole history. To
+answer "how did my net worth change since X", run it with `--from X` and compare the first
+and last rows.
 
 ## How it is computed
 

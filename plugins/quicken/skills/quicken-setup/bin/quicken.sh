@@ -20,7 +20,8 @@ die() { echo "quicken: $*" >&2; exit 1; }
 warn() { echo "quicken: $*" >&2; }
 need() { command -v "$1" >/dev/null 2>&1 || die "missing dependency: $1"; }
 upper() { printf '%s' "$1" | tr '[:lower:]' '[:upper:]'; }
-sq() { sqlite3 "$SNAPSHOT" "$@"; }
+sq() { require_snapshot; sqlite3 "$SNAPSHOT" "$@"; }
+sq_ro() { require_snapshot; sqlite3 -readonly "$SNAPSHOT" "$@"; }
 
 load_config() {
   if [ -f "$CONFIG" ]; then
@@ -42,11 +43,12 @@ config_set() {
   chmod 600 "$CONFIG"
 }
 
+snapshot_ready=0
 require_snapshot() {
-  [ -f "$SNAPSHOT" ] || die "no snapshot yet. Run: quicken.sh init <path-to-.quicken>"
+  [ "$snapshot_ready" = 1 ] || [ -s "$SNAPSHOT" ] || die "no snapshot yet. Run: quicken.sh init <path-to-.quicken>"
 }
 
-# ---------------------------------------------------------------- find / init
+# find / init
 
 cmd_find() {
   {
@@ -71,7 +73,7 @@ cmd_init() {
   cmd_status
 }
 
-# ------------------------------------------------------------------- snapshot
+# snapshot
 
 ent_id() {
   sq "SELECT Z_ENT FROM Z_PRIMARYKEY WHERE Z_NAME = '$1' LIMIT 1"
@@ -145,6 +147,14 @@ INSERT OR REPLACE INTO fx_rate
   FROM fx_import WHERE date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND CAST(rate AS REAL) > 0;
 SQL
   done
+  # Reverse and cross rates derived from the cached series, so a different base currency
+  # still gets daily history. Real rows win over derived ones.
+  sq "INSERT OR IGNORE INTO fx_rate
+        SELECT to_ccy, from_ccy, date, 1.0 / rate, source || '-derived' FROM fx_rate WHERE rate > 0;
+      INSERT OR IGNORE INTO fx_rate
+        SELECT a.from_ccy, b.from_ccy, a.date, a.rate / b.rate, 'cross-derived'
+        FROM fx_rate a JOIN fx_rate b ON b.to_ccy = a.to_ccy AND b.date = a.date AND b.from_ccy <> a.from_ccy
+        WHERE b.rate > 0 AND a.to_ccy = '$BASE_CURRENCY';"
 }
 
 cmd_snapshot() {
@@ -161,6 +171,7 @@ cmd_snapshot() {
   fi
   mv "$tmp" "$SNAPSHOT"
   chmod 600 "$SNAPSHOT"
+  snapshot_ready=1
   sq < "$SQL_DIR/fx_schema.sql"
   render_views | sq
   load_fx
@@ -173,11 +184,12 @@ cmd_base() {
   [ -n "$b" ] || die "usage: quicken.sh base <CCY>"
   config_set BASE_CURRENCY "$b"
   BASE_CURRENCY="$b"
-  if [ -f "$SNAPSHOT" ]; then load_fx; fi
+  if [ -s "$SNAPSHOT" ]; then load_fx; fi
   echo "base currency: $b"
+  echo "run 'quicken.sh fx sync' to download rates into $b for every other currency"
 }
 
-# ------------------------------------------------------------------------ fx
+# fx
 
 fetch_frankfurter() { # from to since out
   local json="$STATE_DIR/fx.tmp.json"
@@ -283,6 +295,7 @@ cmd_fx() {
       fx_coverage ;;
     provider)
       [ $# -ge 2 ] || die "usage: quicken.sh fx provider <FROM> <frankfurter|yahoo|csv|quicken> [csv-path]"
+      require_snapshot
       ensure_base_currency
       config_set "FX_PROVIDER_$(upper "$1")_$BASE_CURRENCY" "$2"
       if [ "$2" = csv ]; then
@@ -300,7 +313,7 @@ fx_coverage() {
                       FROM fx_rate GROUP BY 1, 2 ORDER BY 1, 2"
 }
 
-# ----------------------------------------------------------------------- sql
+# sql
 
 cmd_sql() {
   require_snapshot
@@ -321,16 +334,25 @@ cmd_sql() {
   [ -n "$query" ] || die "usage: quicken.sh sql [-f file.sql | \"SELECT ...\"] [--json|--csv] [--base CCY] [--from D] [--to D]"
   [ -n "$from" ] || from=$(sqlite3 :memory: "SELECT date('now', '-12 months')")
   [ -n "$to" ] || to=$(sqlite3 :memory: "SELECT date('now')")
-  [ -n "$base" ] || base=$(sq "SELECT base_ccy FROM fx_config LIMIT 1")
+  local configured; configured=$(sq_ro "SELECT base_ccy FROM fx_config LIMIT 1")
+  [ -n "$base" ] || base="$configured"
   query=$(printf '%s\n' "$query" | sed -e "s/{{from}}/$from/g" -e "s/{{to}}/$to/g" -e "s/{{base}}/$base/g")
-  {
-    printf '.bail on\n.headers on\n.mode %s\n' "$mode"
-    printf 'BEGIN;\nUPDATE fx_config SET base_ccy = %s;\n' "'$base'"
-    printf '%s\n;\nROLLBACK;\n' "$query"
-  } | sq
+  if [ "$base" = "$configured" ]; then
+    printf '.bail on\n.headers on\n.mode %s\n%s\n' "$mode" "$query" | sq_ro
+  else
+    # Temporary base switch: the views read fx_config, so update it inside a rolled-back transaction.
+    if [ "$(sq_ro "SELECT count(*) FROM fx_rate WHERE to_ccy = '$base' AND source NOT IN ('quicken', 'quicken-derived')")" = 0 ]; then
+      warn "no daily rates into $base; amounts convert at Quicken's single current rate. Run: quicken.sh base $base && quicken.sh fx sync"
+    fi
+    {
+      printf '.bail on\n.headers on\n.mode %s\n' "$mode"
+      printf 'BEGIN;\nUPDATE fx_config SET base_ccy = %s;\n' "'$base'"
+      printf '%s\n;\nROLLBACK;\n' "$query"
+    } | sq
+  fi
 }
 
-# ------------------------------------------------------------ status / doctor
+# status / doctor
 
 snapshot_age_hours() {
   load_config
@@ -369,6 +391,13 @@ cmd_doctor() {
   fi
   for v in $(sq "SELECT from_ccy || '/' || to_ccy FROM fx_rate GROUP BY from_ccy, to_ccy HAVING max(date) < date('now', '-30 days')"); do
     echo "  WARN exchange rates for $v end more than 30 days ago. Run: quicken.sh fx sync"; ok=0
+  done
+  for v in $(sq "SELECT c.currency FROM (SELECT currency FROM q_account WHERE closed = 0 UNION SELECT currency FROM q_holding) c
+                 CROSS JOIN fx_config f
+                 WHERE c.currency IS NOT NULL AND c.currency <> f.base_ccy
+                   AND (SELECT count(*) FROM fx_rate r WHERE r.from_ccy = c.currency AND r.to_ccy = f.base_ccy
+                        AND r.source NOT IN ('quicken', 'quicken-derived')) = 0"); do
+    echo "  WARN only Quicken's single current rate is known for $v; history converts at today's rate. Run: quicken.sh fx sync"; ok=0
   done
   local age; age=$(snapshot_age_hours)
   if [ "$age" -ge 24 ]; then echo "  WARN snapshot is ${age}h old. Run: quicken.sh snapshot"; fi

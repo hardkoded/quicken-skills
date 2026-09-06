@@ -31,7 +31,9 @@ WITH RECURSIVE c AS (
   SELECT Z_PK AS id, ZNAME AS name, ZNAME AS full_name, ZPARENTCATEGORY AS parent_id, 0 AS depth,
          ZTYPE AS type_code, ZHIDDEN AS hidden, ZTAXREFUS AS tax_ref_us, ZTAXREFCA AS tax_ref_ca
   FROM ZTAG
-  WHERE Z_ENT = {{ENT_CategoryTag}} AND ZDELETIONCOUNT = 0 AND ZPARENTCATEGORY IS NULL
+  WHERE Z_ENT = {{ENT_CategoryTag}} AND ZDELETIONCOUNT = 0
+    AND (ZPARENTCATEGORY IS NULL OR ZPARENTCATEGORY NOT IN
+         (SELECT Z_PK FROM ZTAG WHERE Z_ENT = {{ENT_CategoryTag}} AND ZDELETIONCOUNT = 0))
   UNION ALL
   SELECT t.Z_PK, t.ZNAME, c.full_name || ':' || t.ZNAME, t.ZPARENTCATEGORY, c.depth + 1,
          t.ZTYPE, t.ZHIDDEN, t.ZTAXREFUS, t.ZTAXREFCA
@@ -167,7 +169,7 @@ FROM q_quote q
 JOIN (SELECT security_id, max(date) AS date FROM q_quote GROUP BY 1) m
   ON m.security_id = q.security_id AND m.date = q.date;
 
--- Current holdings from Quicken's lots (lots already reflect stock splits).
+-- Current holdings in open accounts from Quicken's lots (lots already reflect stock splits).
 -- Values are in the security currency; value_base uses the latest known rate.
 CREATE VIEW IF NOT EXISTS q_holding AS
 SELECT h.*, round(h.value * h.fx_rate, 2) AS value_base
@@ -187,11 +189,7 @@ FROM (
          round(l.units * q.close - l.cost_basis, 2) AS unrealized_gain,
          s.asset_class,
          c.base_ccy                      AS base_currency,
-         CASE WHEN coalesce(s.currency, a.currency) = c.base_ccy THEN 1.0
-              ELSE (SELECT f.rate FROM fx_rate f
-                     WHERE f.from_ccy = coalesce(s.currency, a.currency) AND f.to_ccy = c.base_ccy
-                     ORDER BY f.date DESC LIMIT 1)
-         END AS fx_rate
+         CASE WHEN coalesce(s.currency, a.currency) = c.base_ccy THEN 1.0 ELSE fx.rate END AS fx_rate
   FROM ZPOSITION p
   JOIN (SELECT ZPOSITION AS position_id, sum(ZLATESTUNITS) AS units, sum(ZLATESTCOSTBASIS) AS cost_basis
           FROM ZLOT WHERE ZDELETIONCOUNT = 0 GROUP BY 1) l ON l.position_id = p.Z_PK
@@ -199,7 +197,8 @@ FROM (
   JOIN q_security s ON s.id = p.ZSECURITY
   LEFT JOIN q_quote_latest q ON q.security_id = s.id
   CROSS JOIN fx_config c
-  WHERE p.ZDELETIONCOUNT = 0 AND abs(l.units) > 0.000001
+  LEFT JOIN q_fx_latest fx ON fx.from_ccy = coalesce(s.currency, a.currency) AND fx.to_ccy = c.base_ccy
+  WHERE p.ZDELETIONCOUNT = 0 AND a.closed = 0 AND abs(l.units) > 0.000001
 ) h;
 
 CREATE VIEW IF NOT EXISTS q_investment_transaction AS
