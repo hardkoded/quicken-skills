@@ -68,6 +68,7 @@ cmd_init() {
   p="${p%/}"
   [ -f "$p/data" ] || die "no data file inside $p"
   head -c 16 "$p/data" | grep -q 'SQLite format 3' || die "$p/data is not a SQLite database"
+  check_file_is_open "$p/data"
   config_set QUICKEN_FILE "$p"
   cmd_snapshot
   cmd_status
@@ -157,11 +158,20 @@ SQL
         WHERE b.rate > 0 AND a.to_ccy = '$BASE_CURRENCY';"
 }
 
+# Quicken keeps the data file populated only while the file is open in Quicken.
+# A closed file has a handful of metadata tables and no accounts.
+check_file_is_open() {
+  local n
+  n=$(sqlite3 -readonly "file:$1?immutable=1" "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'ZACCOUNT'" 2>/dev/null || echo 0)
+  [ "$n" = 1 ] || die "the data file has no account table. Open the file in Quicken and try again."
+}
+
 cmd_snapshot() {
   load_config
   [ -n "$QUICKEN_FILE" ] || die "not configured. Run: quicken.sh init <path-to-.quicken>"
   local live="$QUICKEN_FILE/data" tmp="$SNAPSHOT.tmp"
   [ -f "$live" ] || die "data file not found: $live"
+  check_file_is_open "$live"
   mkdir -p "$STATE_DIR"
   rm -f "$tmp"
   if ! sqlite3 -readonly "$live" ".backup '$tmp'" 2>/dev/null; then

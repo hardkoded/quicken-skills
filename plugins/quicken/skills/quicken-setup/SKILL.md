@@ -26,6 +26,8 @@ bash <skill-dir>/bin/quicken.sh <command> [args]
 live beside this one and call `bash <their-skill-dir>/../quicken-setup/bin/quicken.sh`.
 
 Requirements: `sqlite3` (ships with macOS) and `curl` for exchange rates. No Node, no Python.
+**The file must be open in Quicken.** Quicken keeps the database populated only while the file
+is open; a closed file has no account table and `init`/`snapshot` stop with a message saying so.
 
 ## First run
 

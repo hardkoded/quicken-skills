@@ -22,6 +22,11 @@ check() { # name expected actual
 }
 q() { bash "$Q" sql --csv "$@" | tail -n +2 | tr -d '\r"'; }
 
+echo "closed file is rejected"
+mkdir -p "$TMP/closed.quicken"
+sqlite3 "$TMP/closed.quicken/data" "CREATE TABLE Z_METADATA (Z_VERSION INTEGER)"
+if bash "$Q" init "$TMP/closed.quicken" > /dev/null 2>&1; then echo "  FAIL init accepted a closed file"; fail=1; else echo "  ok   init rejects a closed file"; fi
+
 echo "init"
 bash "$Q" init "$TMP/fixture.quicken" > /dev/null
 echo "doctor"
@@ -44,7 +49,7 @@ check "stale days sane"       "2024-02-15"               "$(q "SELECT max(coales
 echo "recipes"
 check "spending by category"  "Food:Groceries,3,234.0,100.0" \
   "$(q -f "$SKILLS/quicken-spending/sql/by_category.sql" --from 2024-01-01 --to 2024-12-31)"
-check "savings rate"          "2024-01,3000.0,100.0,2900.0,97.0" \
+check "savings rate"          "2024-01,3000.0,100.0,2900.0,97.0," \
   "$(q -f "$SKILLS/quicken-spending/sql/income_vs_expense_monthly.sql" --from 2024-01-01 --to 2024-01-31)"
 check "net worth"             "NET WORTH,3,4,2870.0" \
   "$(q -f "$SKILLS/quicken-net-worth/sql/current_by_type.sql" | grep '^NET WORTH')"

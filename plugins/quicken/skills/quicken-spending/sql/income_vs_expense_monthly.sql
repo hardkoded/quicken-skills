@@ -9,6 +9,8 @@ WITH m AS (
 )
 SELECT month, round(income) AS income_{{base}}, round(expenses) AS expenses_{{base}},
        round(income - expenses) AS net_{{base}},
-       CASE WHEN income > 0 THEN round(100.0 * (income - expenses) / income) END AS savings_rate_pct
+       CASE WHEN month = strftime('%Y-%m', 'now') THEN NULL
+            WHEN income > 0 THEN round(100.0 * (income - expenses) / income) END AS savings_rate_pct,
+       CASE WHEN month = strftime('%Y-%m', 'now') THEN 'partial month' END AS note
 FROM m
 ORDER BY month;
