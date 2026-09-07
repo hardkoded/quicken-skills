@@ -13,8 +13,8 @@ description: |
 
 ## Before you start
 
-`bash <skill-dir>/../quicken-setup/bin/quicken.sh status` (run `quicken-setup` if there is no
-snapshot; `quicken.sh snapshot` if it is over a day old). Then `quicken.sh doctor`: holdings
+`bash <skill-dir>/../quicken-setup/bin/quicken.sh status` (run `quicken-setup` if it says
+"not configured"). Then `quicken.sh doctor`: holdings
 without a recent price make every value stale. Prices come from Quicken's own quote history,
 so if the user has not opened Quicken recently, say the prices are as of `price_date`.
 
@@ -48,6 +48,6 @@ Run with `bash <skill-dir>/../quicken-setup/bin/quicken.sh sql -f <skill-dir>/sq
 
 - Lead with total value in the base currency and total unrealized gain. Then the top
   positions by value, with weight %. Round money to whole units, units to 4 decimals.
-- State the base currency, rate source, price dates and the snapshot date.
+- State the base currency, rate source, and price dates.
 - Never present the simple total return as an annual rate.
 - Tax questions: these numbers are not tax lots matched to sales. Point that out.

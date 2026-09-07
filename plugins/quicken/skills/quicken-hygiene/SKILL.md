@@ -16,8 +16,8 @@ fixing them happens in Quicken, by the user.
 
 ## Before you start
 
-`bash <skill-dir>/../quicken-setup/bin/quicken.sh status` (run `quicken-setup` if there is no
-snapshot; `quicken.sh snapshot` if it is over a day old).
+`bash <skill-dir>/../quicken-setup/bin/quicken.sh status` (run `quicken-setup` if it says
+"not configured").
 
 ## Recipes
 

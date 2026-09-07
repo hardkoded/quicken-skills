@@ -13,8 +13,8 @@ description: |
 
 ## Before you start
 
-`bash <skill-dir>/../quicken-setup/bin/quicken.sh status` (run `quicken-setup` if there is no
-snapshot; `quicken.sh snapshot` if it is over a day old). If the file has several currencies
+`bash <skill-dir>/../quicken-setup/bin/quicken.sh status` (run `quicken-setup` if it says
+"not configured"). If the file has several currencies
 and `status` shows no `fx coverage` beyond `quicken`, run `quicken.sh fx sync` first.
 
 ## Conventions

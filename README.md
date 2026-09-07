@@ -17,7 +17,7 @@ Ask things like:
 
 | Skill | What it does |
 |---|---|
-| `quicken-setup` | Finds your `.quicken` file, takes a read-only snapshot, builds normalized SQL views, downloads daily exchange rates. Run first. |
+| `quicken-setup` | Finds your `.quicken` file, opens it read-only, defines the normalized SQL views, downloads daily exchange rates. Run first. |
 | `quicken-query` | Turns a question into SQL over the views. Ships a schema reference of the Quicken data model. |
 | `quicken-net-worth` | Net worth by account, type and currency, and month-by-month history, in one base currency. |
 | `quicken-spending` | Spending by category, payee and month, trends, recurring charges, price increases, savings rate. |
@@ -57,7 +57,8 @@ codex plugin add quicken@quicken-skills
 - Quicken Classic for Mac. The data file is a `.quicken` package with a SQLite database inside.
 - **The file must be open in Quicken.** Quicken only keeps the database populated while the
   file is open; a closed file has no accounts in it and the setup skill tells you so. Leave
-  Quicken running while you ask questions. The skills read a snapshot, never the live file.
+  Quicken running while you ask questions. Every query reads the open file directly, so the
+  answers always match what Quicken shows.
 - `sqlite3` and `curl`, both included with macOS. Nothing to install.
 
 Quicken for Windows (`.QDF`) is not supported yet. Its file format is not plain SQLite.
@@ -76,7 +77,8 @@ one EUR account, one brokerage account), so the numbers are tiny but real.
 $ quicken.sh find
 /Users/me/Documents/My Finances.quicken
 $ quicken.sh init "/Users/me/Documents/My Finances.quicken"
-snapshot refreshed: /Users/me/.quicken-skills/snapshot.sqlite
+file:          /Users/me/Documents/My Finances.quicken
+rates db:      /Users/me/.quicken-skills/fx.sqlite
 base currency: USD
 transactions:  8 from 2024-01-15 to 2024-06-01
 accounts by currency (open only):
@@ -184,9 +186,10 @@ documents every view and the raw Quicken tables for anything the views do not co
 
 ## How it works
 
-1. `quicken-setup` copies `<file>.quicken/data` to `~/.quicken-skills/snapshot.sqlite`
-   with SQLite's backup API (read-only) and creates `q_*` views on the copy: accounts,
-   categories, split lines, balances by month, holdings, quotes, investment transactions.
+1. Every command opens `<file>.quicken/data` with `sqlite3 -readonly` and defines the `q_*`
+   views as `TEMP` views for that one session: accounts, categories, split lines, balances by
+   month, holdings, quotes, investment transactions. Nothing is copied and nothing is stored
+   in the Quicken file, so the data is always current.
 2. Quicken stores only one *current* exchange rate per currency pair. To consolidate history,
    the setup skill downloads daily rates (ECB via Frankfurter by default, Yahoo Finance as
    fallback, or a CSV you provide) and caches them in `~/.quicken-skills/fx/`. Every `*_base`
@@ -198,9 +201,10 @@ The base currency defaults to Quicken's home currency. Change it with `quicken.s
 
 ## Privacy
 
-- The live Quicken file is never opened for writing and nothing inside the package is changed.
-- The snapshot is a full copy of your finances, stored with mode 600 in your home directory.
-  Delete `~/.quicken-skills` at any time; the next `snapshot` recreates it.
+- The Quicken file is opened read-only, never copied, and nothing inside the package is changed.
+  The test suite checks that the file's hash is the same after a full run.
+- `~/.quicken-skills` holds only your settings and cached exchange rates (mode 600).
+  Delete it at any time; the next `init` recreates it.
 - The only network calls are exchange-rate downloads. They contain currency codes and dates,
   never your transactions.
 - Your AI agent, of course, sees the query results you ask for. Use an agent you trust with

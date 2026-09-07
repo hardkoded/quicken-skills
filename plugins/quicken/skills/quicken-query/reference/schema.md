@@ -1,8 +1,9 @@
 # Quicken for Mac data model, as seen through SQLite
 
 The `.quicken` package is a folder. `data` inside it is a Core Data SQLite store
-(Quicken Classic for Mac; verified on 9.x). `quicken.sh snapshot` copies it and adds the
-`q_*` views and the `fx_*` tables described here. Nothing here ever writes to the live file.
+(Quicken Classic for Mac; verified on 9.x). `quicken.sh sql` opens it read-only and defines the
+`q_*` views described here as `TEMP` views for that session; `fx_rate` lives in a separate
+database attached as `fx`. Nothing here ever writes to the Quicken file.
 
 ## Core Data conventions
 
@@ -10,7 +11,7 @@ The `.quicken` package is a folder. `data` inside it is a Core Data SQLite store
 - Entity types are listed in `Z_PRIMARYKEY (Z_ENT, Z_NAME, Z_SUPER)`. Subclasses share one
   table: `ZTRANSACTION` holds CashFlowTransaction, SmartCashFlowTransaction (scheduled) and
   InvestmentTransaction rows, distinguished by `Z_ENT`. Entity numbers change between
-  Quicken versions. Never hard-code them; the views resolve them at snapshot time.
+  Quicken versions. Never hard-code them; the views resolve them on every run.
 - Many-to-many join tables are named `Z_<n>USERTAGS` with columns that embed entity numbers.
   The views resolve the right one by column name.
 - Timestamps are seconds since 2001-01-01 UTC. Convert with
