@@ -14,8 +14,9 @@ Natural language in, one SQL query out, table back. Read-only.
 
 ## Before you start
 
-1. `bash <skill-dir>/../quicken-setup/bin/quicken.sh status`. If no snapshot, run the
-   `quicken-setup` skill first. If the snapshot is over a day old, run `quicken.sh snapshot`.
+1. `bash <skill-dir>/../quicken-setup/bin/quicken.sh status`. If it says "not configured",
+   run the `quicken-setup` skill first. Queries read the open Quicken file, so there is
+   nothing to refresh.
 2. Read `reference/schema.md` in this folder once per session. It lists every view, its
    columns, and the raw table quirks.
 
@@ -34,7 +35,7 @@ Natural language in, one SQL query out, table back. Read-only.
    `bash <skill-dir>/../quicken-setup/bin/quicken.sh sql "<query>" --from 2025-01-01 --to 2025-12-31`
    Add `--json` when you need to post-process. Add `--base EUR` to convert into another currency for that run.
 4. Present the result. Always state: period, base currency, rate source (from `status`),
-   snapshot date, and whether transfers were excluded. Round to whole units unless the user
+   and whether transfers were excluded. Round to whole units unless the user
    asks for cents. If a filter matched nothing, say so and show what values exist
    (for example `SELECT DISTINCT category FROM q_split WHERE category LIKE '%word%'`).
 

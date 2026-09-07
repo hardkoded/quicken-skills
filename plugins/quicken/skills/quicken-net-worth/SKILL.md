@@ -12,8 +12,8 @@ description: |
 
 ## Before you start
 
-`bash <skill-dir>/../quicken-setup/bin/quicken.sh status` (run `quicken-setup` if there is no
-snapshot; `quicken.sh snapshot` if it is over a day old). With more than one currency, make
+`bash <skill-dir>/../quicken-setup/bin/quicken.sh status` (run `quicken-setup` if it says
+"not configured"). With more than one currency, make
 sure `fx coverage` lists a provider other than `quicken`; otherwise run `quicken.sh fx sync`.
 Run `quicken.sh doctor` once: stale prices or rates change the answer.
 
@@ -48,7 +48,7 @@ and last rows.
 
 - Lead with the total in the base currency, then the split assets vs liabilities, then
   the biggest accounts. Round to whole units.
-- Always state the base currency, the rate source, and the snapshot date.
+- Always state the base currency, the rate source, and that the numbers are live from the open file.
 - For exposure, explain that a security's currency is the currency it is priced in, which
   may differ from its account.
 - Closed accounts are excluded; accounts with a zero balance are hidden in the by-account view.

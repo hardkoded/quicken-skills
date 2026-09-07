@@ -27,6 +27,7 @@ mkdir -p "$TMP/closed.quicken"
 sqlite3 "$TMP/closed.quicken/data" "CREATE TABLE Z_METADATA (Z_VERSION INTEGER)"
 if bash "$Q" init "$TMP/closed.quicken" > /dev/null 2>&1; then echo "  FAIL init accepted a closed file"; fail=1; else echo "  ok   init rejects a closed file"; fi
 
+before=$(shasum "$TMP/fixture.quicken/data" | cut -d' ' -f1)
 echo "init"
 bash "$Q" init "$TMP/fixture.quicken" > /dev/null
 echo "doctor"
@@ -76,5 +77,10 @@ echo "base currency switch"
 check "base EUR total"        "EUR" "$(q "SELECT base_currency FROM q_split_base LIMIT 1" --base EUR)"
 check "base EUR derived rate" "-90.91" "$(q "SELECT amount_base FROM q_split_base WHERE id = 201" --base EUR 2>/dev/null)"
 check "base unchanged after"  "USD" "$(q "SELECT base_ccy FROM fx_config")"
+
+echo "read-only"
+check "quicken file unchanged"  "$before" "$(shasum "$TMP/fixture.quicken/data" | cut -d' ' -f1)"
+check "no journal left behind"  "$TMP/fixture.quicken/data" "$(echo "$TMP"/fixture.quicken/*)"
+check "no copy of the file"     "config fx fx.sqlite" "$(cd "$QUICKEN_SKILLS_HOME" && echo *)"
 
 if [ "$fail" = 0 ]; then echo "all tests passed"; else echo "tests failed"; exit 1; fi

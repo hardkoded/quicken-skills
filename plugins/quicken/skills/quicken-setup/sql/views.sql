@@ -1,14 +1,17 @@
 -- Normalized read-only views over the Quicken for Mac Core Data store.
--- This file is a template. quicken.sh resolves the {{...}} placeholders from the
--- snapshot itself (Z_PRIMARYKEY and sqlite_master) before applying it, because
+-- This file is a template. quicken.sh resolves the {{...}} placeholders from the open
+-- Quicken file (Z_PRIMARYKEY and sqlite_master) on every run, because
 -- Core Data entity numbers change between Quicken versions.
+-- The views are TEMP: they exist only for one sqlite3 session and nothing is stored in
+-- the Quicken file. fx_config is a TEMP table filled by quicken.sh; fx_rate and
+-- q_fx_latest live in ~/.quicken-skills/fx.sqlite, attached as `fx`.
 --
 -- Dates: Core Data stores seconds since 2001-01-01 UTC. Quicken writes them at
 -- UTC noon (or midnight), so date(x + 978307200, 'unixepoch') is the calendar day.
 -- ZENTEREDDATE is the transaction date and is always set. ZPOSTEDDATE is only set
 -- on downloaded transactions (the bank's posting date).
 
-CREATE VIEW IF NOT EXISTS q_account AS
+CREATE TEMP VIEW q_account AS
 SELECT a.Z_PK                       AS id,
        a.ZNAME                      AS name,
        a.ZTYPENAME                  AS type,
@@ -26,7 +29,7 @@ FROM ZACCOUNT a
 LEFT JOIN ZFINANCIALINSTITUTION fi ON fi.Z_PK = a.ZFINANCIALINSTITUTION
 WHERE a.ZDELETIONCOUNT = 0;
 
-CREATE VIEW IF NOT EXISTS q_category AS
+CREATE TEMP VIEW q_category AS
 WITH RECURSIVE c AS (
   SELECT Z_PK AS id, ZNAME AS name, ZNAME AS full_name, ZPARENTCATEGORY AS parent_id, 0 AS depth,
          ZTYPE AS type_code, ZHIDDEN AS hidden, ZTAXREFUS AS tax_ref_us, ZTAXREFCA AS tax_ref_ca
@@ -46,17 +49,17 @@ SELECT id, name, full_name, parent_id, depth,
        hidden, tax_ref_us, tax_ref_ca
 FROM c;
 
-CREATE VIEW IF NOT EXISTS q_tag AS
+CREATE TEMP VIEW q_tag AS
 SELECT Z_PK AS id, ZNAME AS name, ZUSERDESCRIPTION AS description
 FROM ZTAG
 WHERE Z_ENT = {{ENT_UserTag}} AND ZDELETIONCOUNT = 0;
 
-CREATE VIEW IF NOT EXISTS q_payee AS
+CREATE TEMP VIEW q_payee AS
 SELECT Z_PK AS id, ZNAME AS name
 FROM ZUSERPAYEE
 WHERE ZDELETIONCOUNT = 0;
 
-CREATE VIEW IF NOT EXISTS q_security AS
+CREATE TEMP VIEW q_security AS
 SELECT s.Z_PK       AS id,
        s.ZNAME      AS name,
        s.ZTICKER    AS ticker,
@@ -68,7 +71,7 @@ SELECT s.Z_PK       AS id,
 FROM ZSECURITY s
 WHERE s.ZDELETIONCOUNT = 0;
 
-CREATE VIEW IF NOT EXISTS q_transaction AS
+CREATE TEMP VIEW q_transaction AS
 SELECT t.Z_PK          AS id,
        t.ZQUICKENID    AS quicken_id,
        date(t.ZENTEREDDATE + 978307200, 'unixepoch') AS date,
@@ -98,7 +101,7 @@ WHERE t.ZDELETIONCOUNT = 0;
 -- One row per split line. This is the grain for spending and income analysis.
 -- Investment transactions also have one split whose category is the action
 -- (Buy, Sell, Dividend Income, ...). Filter on kind or category_kind as needed.
-CREATE VIEW IF NOT EXISTS q_split AS
+CREATE TEMP VIEW q_split AS
 SELECT e.Z_PK            AS id,
        e.ZPARENT         AS transaction_id,
        tx.date,
@@ -142,17 +145,17 @@ WHERE e.ZDELETIONCOUNT = 0
 
 -- q_split plus the amount converted to the base currency at the transaction date.
 -- Rate lookup: latest rate on or before the date; if none, the earliest rate known.
-CREATE VIEW IF NOT EXISTS q_split_base AS
+CREATE TEMP VIEW q_split_base AS
 SELECT x.*, round(x.amount * x.fx_rate, 2) AS amount_base
 FROM (
   SELECT s.*,
          c.base_ccy AS base_currency,
          CASE WHEN s.currency = c.base_ccy THEN 1.0
               ELSE coalesce(
-                (SELECT f.rate FROM fx_rate f
+                (SELECT f.rate FROM fx.fx_rate f
                   WHERE f.from_ccy = s.currency AND f.to_ccy = c.base_ccy AND f.date <= s.date
                   ORDER BY f.date DESC LIMIT 1),
-                (SELECT f.rate FROM fx_rate f
+                (SELECT f.rate FROM fx.fx_rate f
                   WHERE f.from_ccy = s.currency AND f.to_ccy = c.base_ccy
                   ORDER BY f.date ASC LIMIT 1))
          END AS fx_rate
@@ -160,7 +163,7 @@ FROM (
   CROSS JOIN fx_config c
 ) x;
 
-CREATE VIEW IF NOT EXISTS q_quote AS
+CREATE TEMP VIEW q_quote AS
 SELECT ZSECURITY AS security_id,
        date(ZQUOTEDATE + 978307200, 'unixepoch') AS date,
        max(ZCLOSINGPRICE) AS close
@@ -168,7 +171,7 @@ FROM ZSECURITYQUOTE
 WHERE ZDELETIONCOUNT = 0 AND ZCLOSINGPRICE IS NOT NULL
 GROUP BY 1, 2;
 
-CREATE VIEW IF NOT EXISTS q_quote_latest AS
+CREATE TEMP VIEW q_quote_latest AS
 SELECT q.security_id, q.date, q.close
 FROM q_quote q
 JOIN (SELECT security_id, max(date) AS date FROM q_quote GROUP BY 1) m
@@ -176,7 +179,7 @@ JOIN (SELECT security_id, max(date) AS date FROM q_quote GROUP BY 1) m
 
 -- Current holdings in open accounts from Quicken's lots (lots already reflect stock splits).
 -- Values are in the security currency; value_base uses the latest known rate.
-CREATE VIEW IF NOT EXISTS q_holding AS
+CREATE TEMP VIEW q_holding AS
 SELECT h.*, round(h.value * h.fx_rate, 2) AS value_base
 FROM (
   SELECT p.Z_PK                          AS position_id,
@@ -194,7 +197,7 @@ FROM (
          round(l.units * q.close - l.cost_basis, 2) AS unrealized_gain,
          s.asset_class,
          c.base_ccy                      AS base_currency,
-         CASE WHEN coalesce(s.currency, a.currency) = c.base_ccy THEN 1.0 ELSE fx.rate END AS fx_rate
+         CASE WHEN coalesce(s.currency, a.currency) = c.base_ccy THEN 1.0 ELSE r.rate END AS fx_rate
   FROM ZPOSITION p
   JOIN (SELECT ZPOSITION AS position_id, sum(ZLATESTUNITS) AS units, sum(ZLATESTCOSTBASIS) AS cost_basis
           FROM ZLOT WHERE ZDELETIONCOUNT = 0 GROUP BY 1) l ON l.position_id = p.Z_PK
@@ -202,11 +205,11 @@ FROM (
   JOIN q_security s ON s.id = p.ZSECURITY
   LEFT JOIN q_quote_latest q ON q.security_id = s.id
   CROSS JOIN fx_config c
-  LEFT JOIN q_fx_latest fx ON fx.from_ccy = coalesce(s.currency, a.currency) AND fx.to_ccy = c.base_ccy
+  LEFT JOIN fx.q_fx_latest r ON r.from_ccy = coalesce(s.currency, a.currency) AND r.to_ccy = c.base_ccy
   WHERE p.ZDELETIONCOUNT = 0 AND a.closed = 0 AND abs(l.units) > 0.000001
 ) h;
 
-CREATE VIEW IF NOT EXISTS q_investment_transaction AS
+CREATE TEMP VIEW q_investment_transaction AS
 SELECT t.Z_PK        AS id,
        tx.date,
        tx.account_id,
@@ -236,7 +239,7 @@ WHERE tx.kind = 'investment';
 
 -- Month-end balance of every account, from the sum of transaction amounts.
 -- Brokerage accounts: this is the cash side only; add q_holding for securities.
-CREATE VIEW IF NOT EXISTS q_account_balance_monthly AS
+CREATE TEMP VIEW q_account_balance_monthly AS
 WITH RECURSIVE
 bounds AS (
   SELECT strftime('%Y-%m-01', min(date)) AS first_month,
@@ -275,10 +278,10 @@ FROM (
   SELECT cells.*,
          CASE WHEN currency = base_currency THEN 1.0
               ELSE coalesce(
-                (SELECT f.rate FROM fx_rate f
+                (SELECT f.rate FROM fx.fx_rate f
                   WHERE f.from_ccy = cells.currency AND f.to_ccy = cells.base_currency AND f.date <= cells.month_end
                   ORDER BY f.date DESC LIMIT 1),
-                (SELECT f.rate FROM fx_rate f
+                (SELECT f.rate FROM fx.fx_rate f
                   WHERE f.from_ccy = cells.currency AND f.to_ccy = cells.base_currency
                   ORDER BY f.date ASC LIMIT 1))
          END AS fx_rate
@@ -286,7 +289,7 @@ FROM (
 ) x;
 
 -- Scheduled (not yet posted) transactions.
-CREATE VIEW IF NOT EXISTS q_scheduled AS
+CREATE TEMP VIEW q_scheduled AS
 SELECT t.Z_PK AS id,
        date(t.ZENTEREDDATE + 978307200, 'unixepoch') AS next_date,
        a.ZNAME AS account, a.ZCURRENCY AS currency,

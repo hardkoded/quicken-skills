@@ -9,11 +9,6 @@ CREATE TABLE IF NOT EXISTS fx_rate (
   PRIMARY KEY (from_ccy, to_ccy, date)
 );
 
--- One row: the currency every *_base column converts into.
-CREATE TABLE IF NOT EXISTS fx_config (
-  base_ccy TEXT NOT NULL
-);
-
 CREATE VIEW IF NOT EXISTS q_fx_latest AS
 SELECT f.from_ccy, f.to_ccy, f.date, f.rate, f.source
 FROM fx_rate f
